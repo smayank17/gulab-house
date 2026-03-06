@@ -4,6 +4,8 @@ import { useEffect, useState, DragEvent } from "react";
 import { centsToUsd } from "@/lib/formatting";
 import { Select } from "@/app/components/ui/Select";
 
+type Status = "NEW" | "CONFIRMED" | "IN_PROGRESS" | "READY" | "DELIVERED" | "SHIPPED";
+
 type Order = {
   id: string;
   orderNumber: string;
@@ -12,7 +14,7 @@ type Order = {
   fulfillment: string;
   requestedDate: string;
   subtotalCents: number;
-  status: string;
+  status: Status;
 };
 
 const ACTIVE_STATUSES = ["CONFIRMED", "IN_PROGRESS", "READY"] as const;
@@ -31,21 +33,31 @@ export function KanbanBoard() {
 
   async function load() {
     setLoading(true);
-    const r = await fetch("/api/admin/orders", { cache: "no-store" });
-    const d = await r.json();
-    setOrders(d.orders || []);
-    setLoading(false);
+    try {
+      const r = await fetch("/api/admin/orders", { cache: "no-store" });
+      if (!r.ok) throw new Error("Failed to fetch");
+      const d = await r.json();
+      setOrders(d.orders || []);
+    } catch {
+      // keep existing orders on error
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
 
   async function updateStatus(id: string, status: string) {
-    await fetch(`/api/admin/orders/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    load();
+    try {
+      await fetch(`/api/admin/orders/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      load();
+    } catch {
+      // silently fail, board stays as-is
+    }
   }
 
   function onDragStart(e: DragEvent, id: string) {
@@ -86,7 +98,7 @@ export function KanbanBoard() {
 
       <div className="flex gap-4 overflow-x-auto pb-4">
         {COLUMNS.map((col) => {
-          const colOrders = orders.filter((o) => col.statuses.includes(o.status as any));
+          const colOrders = orders.filter((o) => (col.statuses as readonly string[]).includes(o.status));
           const isOver = dragOverCol === col.label;
 
           return (
@@ -112,6 +124,7 @@ export function KanbanBoard() {
                     key={order.id}
                     draggable
                     onDragStart={(e) => onDragStart(e, order.id)}
+                    onDragEnd={() => setDraggingId(null)}
                     className={`cursor-grab rounded-lg bg-white p-3 shadow-sm transition-opacity ${
                       draggingId === order.id ? "opacity-40" : "opacity-100"
                     }`}
@@ -131,7 +144,7 @@ export function KanbanBoard() {
                       {centsToUsd(order.subtotalCents)}
                     </div>
 
-                    {ACTIVE_STATUSES.includes(order.status as any) && (
+                    {(ACTIVE_STATUSES as readonly string[]).includes(order.status) && (
                       <div className="mt-2">
                         <Select
                           value={order.status}
