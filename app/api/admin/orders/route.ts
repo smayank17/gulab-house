@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { adminGuard } from "@/lib/adminGuard";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const guard = adminGuard(req);
+  if (guard) return guard;
+
   const orders = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
     take: 200,
