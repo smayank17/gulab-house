@@ -24,9 +24,6 @@ export default async function ConfirmationPage({
 
   if (!order) notFound();
 
-  const handlesSetting = await prisma.setting.findUnique({ where: { key: "payment_handles" } });
-  const handles = handlesSetting ? JSON.parse(handlesSetting.valueJson) : { zelleHandle: "", venmoHandle: "" };
-
   const dateYmd = order.requestedDate.toISOString().slice(0, 10);
   const address =
     order.addressLine1
@@ -37,13 +34,6 @@ export default async function ConfirmationPage({
     .map((i) => `${i.product.name} (${i.packType}) × ${i.quantity}`)
     .join("\n");
 
-  const paymentLine =
-    order.paymentMethod === "ZELLE"
-      ? `Zelle: ${handles.zelleHandle}`
-      : order.paymentMethod === "VENMO"
-      ? `Venmo: ${handles.venmoHandle}`
-      : `Cash (pay at pickup/delivery)`;
-
   const waMsg =
     `Gulab House Order ${order.orderNumber}\n` +
     `Name: ${order.fullName}\n` +
@@ -53,9 +43,20 @@ export default async function ConfirmationPage({
     (address ? `Address: ${address}\n` : "") +
     `Items:\n${itemLines}\n` +
     `Subtotal: ${centsToUsd(order.subtotalCents)}\n` +
-    `Payment: ${paymentLine}`;
+    `Payment: ${order.paymentMethod}`;
 
   const waLink = makeWhatsAppLink(waMsg, process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
+
+  function formatPhone(raw = ""): string {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length === 11 && digits.startsWith("1")) {
+      return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+    return raw;
+  }
+
+  const phone = formatPhone(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
+  const isCash = order.paymentMethod === "CASH";
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
@@ -95,8 +96,20 @@ export default async function ConfirmationPage({
         </div>
 
         <div className="mt-5 rounded-2xl border border-saffron-100 bg-saffron-50 p-4 text-sm text-neutral-700">
-          <div className="font-extrabold">Payment</div>
-          <div className="mt-1">{paymentLine}</div>
+          <div className="font-extrabold">
+            How to pay — {centsToUsd(order.subtotalCents)} due
+          </div>
+          {isCash ? (
+            <div className="mt-1">Pay at pickup/delivery.</div>
+          ) : (
+            <div className="mt-2 grid gap-1">
+              <div><span className="font-semibold">Zelle:</span> {phone}</div>
+              <div><span className="font-semibold">Venmo:</span> {phone}</div>
+              <div className="mt-1 text-xs text-neutral-500">
+                Include order number <span className="font-semibold">{order.orderNumber}</span> in the memo.
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3">
