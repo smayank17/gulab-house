@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { centsToUsd } from "@/lib/formatting";
+import { centsToUsd, formatPhone } from "@/lib/formatting";
 import { makeWhatsAppLink } from "@/lib/whatsapp";
 import { prettyBusinessDate } from "@/lib/cutoff";
 import { Card } from "@/app/components/ui/Card";
@@ -46,14 +46,6 @@ export default async function ConfirmationPage({
     `Payment: ${order.paymentMethod}`;
 
   const waLink = makeWhatsAppLink(waMsg, process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
-
-  function formatPhone(raw = ""): string {
-    const digits = raw.replace(/\D/g, "");
-    if (digits.length === 11 && digits.startsWith("1")) {
-      return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-    }
-    return raw;
-  }
 
   const phone = formatPhone(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
   const isCash = order.paymentMethod === "CASH";
